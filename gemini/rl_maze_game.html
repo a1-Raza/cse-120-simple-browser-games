@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bot Trainer: The Maze Run</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 { color: #2c3e50; margin-bottom: 10px; }
+        .container {
+            display: flex;
+            gap: 20px;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 900px;
+            width: 100%;
+        }
+        .game-area { flex: 2; display: flex; flex-direction: column; align-items: center; }
+        canvas {
+            border: 2px solid #34495e;
+            border-radius: 4px;
+            background: #ecf0f1;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+        }
+        .controls-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 250px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .control-group h3 { margin: 0 0 10px 0; font-size: 1.1em; color: #2c3e50; }
+        label { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: 500; font-size: 0.9em; }
+        input[type=range] { width: 100%; margin-bottom: 10px; cursor: pointer; }
+        .value-display { font-weight: bold; color: #3498db; }
+        button {
+            padding: 12px;
+            font-size: 1em;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        #start-btn { background-color: #2ecc71; color: white; }
+        #start-btn:hover { background-color: #27ae60; }
+        #reset-btn { background-color: #e74c3c; color: white; margin-top: 5px; }
+        #reset-btn:hover { background-color: #c0392b; }
+        button:active { transform: scale(0.98); }
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .stat-box {
+            background: #eef2f7;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-label { display: block; font-size: 0.8em; color: #7f8c8d; }
+        .stat-value { font-size: 1.2em; font-weight: bold; color: #2c3e50; }
+        .explanations {
+            margin-top: 25px;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 900px;
+            line-height: 1.6;
+        }
+        .explanations h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .explanations p { margin-bottom: 15px; }
+        .term { font-weight: bold; color: #e67e22; }
+    </style>
+</head>
+<body>
+
+    <h1>AI Bot Trainer: The Maze Run</h1>
+
+    <div class="container">
+        <div class="game-area">
+            <canvas id="gameCanvas" width="500" height="500"></canvas>
+        </div>
+
+        <div class="controls-area">
+            <div class="control-group">
+                <h3>AI "Brain" Settings</h3>
+                <label for="epsilon">Exploration Rate (ε): <span id="epsilon-val" class="value-display">20%</span></label>
+                <input type="range" id="epsilon" min="0" max="100" value="20" title="How often the bot tries a random move to discover new paths.">
+                
+                <label for="alpha">Learning Rate (α): <span id="alpha-val" class="value-display">0.1</span></label>
+                <input type="range" id="alpha" min="1" max="100" value="10" title="How quickly the bot updates its knowledge from new experiences.">
+                
+                <label for="gamma">Discount Factor (γ): <span id="gamma-val" class="value-display">0.9</span></label>
+                <input type="range" id="gamma" min="0" max="100" value="90" title="How much the bot values future rewards vs. immediate ones.">
+            </div>
+
+            <div class="control-group">
+                <h3>Simulation Controls</h3>
+                <label for="speed">Speed: <span id="speed-val" class="value-display">1x</span></label>
+                <input type="range" id="speed" min="1" max="50" value="1">
+                <button id="start-btn">Start Training</button>
+                <button id="reset-btn">Reset Brain</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat-box">
+                    <span class="stat-label">Episode</span>
+                    <span id="episode-count" class="stat-value">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Wins</span>
+                    <span id="win-count" class="stat-value">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="explanations">
+        <h2>How to Play (Pre-Lab Mission)</h2>
+        <p>You are an AI researcher. Your goal is to train the little blue bot to find the green goal while avoiding the red pits. The bot learns through <strong>Reinforcement Learning</strong>, meaning it learns by trying things and getting rewards or penalties.</p>
+        
+        <h3>Your Experiment Checklist:</h3>
+        <ol>
+            <li>Click <strong>"Start Training"</strong> and watch the bot's initial clumsy behavior.</li>
+            <li>Observe the faint arrows appearing on the grid. These represent the bot's "brain" (Q-Table), showing the direction it currently thinks is best from each square.</li>
+            <li><strong>Experiment with the sliders!</strong> How does changing the Exploration Rate affect its ability to find the goal versus walking into walls? What happens if the Learning Rate is too high?</li>
+            <li>Try to find the combination of settings that trains the bot to find the optimal path in the fewest number of episodes.</li>
+        </ol>
+
+        <h3>The Key Concepts:</h3>
+        <ul>
+            <li><span class="term">Exploration Rate (ε):</span> The "curiosity" slider. A high value means the bot often ignores what it has learned to try random new moves. This is crucial for discovering the goal initially but bad for consistent performance later.</li>
+            <li><span class="term">Learning Rate (α):</span> How fast the bot changes its mind. A high value means it learns very quickly from a single mistake or success, which can make its behavior unstable. A low value makes it a slow, steady learner.</li>
+            <li><span class="term">Discount Factor (γ):</span> How farsighted the bot is. A value near 1.0 means it cares deeply about long-term rewards (reaching the goal). A value near 0 make it shortsighted, only caring about the immediate next step.</li>
+        </ul>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const GRID_SIZE = 10;
+        const CANVAS_SIZE = 500;
+        const CELL_SIZE = CANVAS_SIZE / GRID_SIZE;
+        const FPS = 60;
+
+        // --- Game State ---
+        let grid = [];
+        let agentPos = { x: 0, y: 0 };
+        let startPos = { x: 1, y: 1 };
+        let goalPos = { x: 8, y: 8 };
+        let qTable = []; // 3D array: [x][y][action]
+        let isRunning = false;
+        let episodeCount = 0;
+        let winCount = 0;
+        let simulationSpeed = 1;
+        let animationFrameId;
+        let lastFrameTime = 0;
+
+        // --- RL Hyperparameters ---
+        let epsilon = 0.2;
+        let alpha = 0.1;
+        let gamma = 0.9;
+
+        // --- Map Codes ---
+        const EMPTY = 0;
+        const WALL = 1;
+        const PIT = 2;
+        const GOAL = 3;
+
+        // --- Actions ---
+        const ACTIONS = [
+            { dx: 0, dy: -1 }, // Up (0)
+            { dx: 1, dy: 0 },  // Right (1)
+            { dx: 0, dy: 1 },  // Down (2)
+            { dx: -1, dy: 0 }  // Left (3)
+        ];
+
+        // --- DOM Elements ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('start-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const epsilonSlider = document.getElementById('epsilon');
+        const alphaSlider = document.getElementById('alpha');
+        const gammaSlider = document.getElementById('gamma');
+        const speedSlider = document.getElementById('speed');
+        const epsilonVal = document.getElementById('epsilon-val');
+        const alphaVal = document.getElementById('alpha-val');
+        const gammaVal = document.getElementById('gamma-val');
+        const speedVal = document.getElementById('speed-val');
+        const episodeDisplay = document.getElementById('episode-count');
+        const winDisplay = document.getElementById('win-count');
+
+        // --- Initialization ---
+        function initGame() {
+            // Create a simple map with walls and pits
+            grid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(EMPTY));
+            
+            // Add outer walls
+            for(let i=0; i<GRID_SIZE; i++) {
+                grid[i][0] = WALL; grid[i][GRID_SIZE-1] = WALL;
+                grid[0][i] = WALL; grid[GRID_SIZE-1][i] = WALL;
+            }
+
+            // Add some obstacles and pits
+            grid[3][1] = WALL; grid[3][2] = WALL; grid[3][3] = WALL;
+            grid[6][6] = WALL; grid[6][7] = WALL; grid[7][6] = WALL;
+            grid[2][5] = PIT; grid[4][7] = PIT; grid[8][2] = PIT;
+
+            grid[goalPos.x][goalPos.y] = GOAL;
+
+            resetQTable();
+            resetAgent();
+            draw();
+        }
+
+        function resetQTable() {
+            qTable = Array(GRID_SIZE).fill(0).map(() => 
+                     Array(GRID_SIZE).fill(0).map(() => 
+                     Array(ACTIONS.length).fill(0)));
+            episodeCount = 0;
+            winCount = 0;
+            updateStats();
+        }
+
+        function resetAgent() {
+            agentPos = { ...startPos };
+        }
+
+        // --- Core RL Logic ---
+
+        function getBestAction(x, y) {
+            let bestAction = 0;
+            let maxQ = qTable[x][y][0];
+            for (let i = 1; i < ACTIONS.length; i++) {
+                if (qTable[x][y][i] > maxQ) {
+                    maxQ = qTable[x][y][i];
+                    bestAction = i;
+                }
+            }
+            return bestAction;
+        }
+
+        function chooseAction() {
+            // Epsilon-greedy strategy
+            if (Math.random() < epsilon) {
+                // Explore: Random action
+                return Math.floor(Math.random() * ACTIONS.length);
+            } else {
+                // Exploit: Best known action
+                return getBestAction(agentPos.x, agentPos.y);
+            }
+        }
+
+        function step(actionIdx) {
+            const action = ACTIONS[actionIdx];
+            let nextX = agentPos.x + action.dx;
+            let nextY = agentPos.y + action.dy;
+            let reward = -1; // Small step penalty to encourage shortest path
+            let done = false;
+
+            // Collision check with walls
+            if (grid[nextX][nextY] === WALL) {
+                nextX = agentPos.x;
+                nextY = agentPos.y;
+                reward = -5; // Penalty for hitting a wall
+            } 
+            // Check for Goal or Pit
+            else if (grid[nextX][nextY] === GOAL) {
+                reward = 100;
+                done = true;
+                winCount++;
+            } else if (grid[nextX][nextY] === PIT) {
+                reward = -100;
+                done = true;
+            }
+
+            return { nextX, nextY, reward, done };
+        }
+
+        function updateQTable(x, y, actionIdx, reward, nextX, nextY, done) {
+            let maxNextQ = 0;
+            if (!done) {
+                const bestNextAction = getBestAction(nextX, nextY);
+                maxNextQ = qTable[nextX][nextY][bestNextAction];
+            }
+
+            // Q-Learning formula
+            // Q(s,a) = Q(s,a) + α * [R + γ * max(Q(s',a')) - Q(s,a)]
+            const currentQ = qTable[x][y][actionIdx];
+            qTable[x][y][actionIdx] = currentQ + alpha * (reward + gamma * maxNextQ - currentQ);
+        }
+
+        // --- Game Loop & Rendering ---
+
+        function gameLoop(timestamp) {
+            if (!isRunning) return;
+            
+            const timeSinceLastFrame = timestamp - lastFrameTime;
+            // Control speed by skipping frames based on the slider
+            if (timeSinceLastFrame < (1000 / (FPS * simulationSpeed))) {
+                 animationFrameId = requestAnimationFrame(gameLoop);
+                 return;
+            }
+            lastFrameTime = timestamp;
+
+            // Run multiple steps per frame for higher speeds
+            let stepsPerFrame = simulationSpeed > 10 ? Math.floor(simulationSpeed / 5) : 1;
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                 const actionIdx = chooseAction();
+                 const { nextX, nextY, reward, done } = step(actionIdx);
+
+                 updateQTable(agentPos.x, agentPos.y, actionIdx, reward, nextX, nextY, done);
+                 agentPos = { x: nextX, y: nextY };
+
+                 if (done) {
+                     episodeCount++;
+                     updateStats();
+                     resetAgent();
+                     break; // End the inner loop if episode finishes
+                 }
+            }
+            
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            
+            // Draw Grid & Objects
+            for (let x = 0; x < GRID_SIZE; x++) {
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    const cellType = grid[x][y];
+                    let color = '#ecf0f1'; // Empty
+                    if (cellType === WALL) color = '#34495e';
+                    else if (cellType === PIT) color = '#e74c3c';
+                    else if (cellType === GOAL) color = '#2ecc71';
+                    
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    ctx.strokeStyle = '#bdc3c7';
+                    ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+
+                    // Draw Q-value arrows (brain visualization)
+                    if (cellType === EMPTY && (x !== startPos.x || y !== startPos.y)) {
+                        drawQArrows(x, y);
+                    }
+                }
+            }
+
+            // Draw Agent
+            ctx.fillStyle = '#3498db';
+            ctx.beginPath();
+            // Draw a simple circle for the bot
+            ctx.arc(
+                agentPos.x * CELL_SIZE + CELL_SIZE / 2,
+                agentPos.y * CELL_SIZE + CELL_SIZE / 2,
+                CELL_SIZE / 3, 0, 2 * Math.PI
+            );
+            ctx.fill();
+        }
+
+        function drawQArrows(x, y) {
+            const cx = x * CELL_SIZE + CELL_SIZE / 2;
+            const cy = y * CELL_SIZE + CELL_SIZE / 2;
+            const arrowSize = CELL_SIZE / 5;
+            
+            // Find maximum absolute Q-value for normalization to set opacity
+            let maxAbsQ = 0.1;
+            for(let q of qTable[x][y]) maxAbsQ = Math.max(maxAbsQ, Math.abs(q));
+
+            ACTIONS.forEach((action, idx) => {
+                const qVal = qTable[x][y][idx];
+                // Opacity based on Q-value strength relative to max
+                const opacity = Math.min(1, Math.max(0.1, Math.abs(qVal) / 100)); 
+                
+                ctx.fillStyle = qVal > 0 ? `rgba(46, 204, 113, ${opacity})` : `rgba(231, 76, 60, ${opacity})`;
+                
+                ctx.beginPath();
+                if (idx === 0) { // Up
+                    ctx.moveTo(cx, cy - arrowSize); ctx.lineTo(cx - arrowSize, cy); ctx.lineTo(cx + arrowSize, cy);
+                } else if (idx === 1) { // Right
+                    ctx.moveTo(cx + arrowSize, cy); ctx.lineTo(cx, cy - arrowSize); ctx.lineTo(cx, cy + arrowSize);
+                } else if (idx === 2) { // Down
+                    ctx.moveTo(cx, cy + arrowSize); ctx.lineTo(cx - arrowSize, cy); ctx.lineTo(cx + arrowSize, cy);
+                } else if (idx === 3) { // Left
+                    ctx.moveTo(cx - arrowSize, cy); ctx.lineTo(cx, cy - arrowSize); ctx.lineTo(cx, cy + arrowSize);
+                }
+                ctx.fill();
+            });
+        }
+
+        function updateStats() {
+            episodeDisplay.textContent = episodeCount;
+            winDisplay.textContent = winCount;
+        }
+
+        // --- Event Listeners ---
+        startBtn.addEventListener('click', () => {
+            if (isRunning) {
+                isRunning = false;
+                startBtn.textContent = "Start Training";
+                startBtn.style.backgroundColor = "#2ecc71";
+                cancelAnimationFrame(animationFrameId);
+            } else {
+                isRunning = true;
+                startBtn.textContent = "Pause Training";
+                startBtn.style.backgroundColor = "#f39c12";
+                lastFrameTime = performance.now();
+                gameLoop(lastFrameTime);
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            isRunning = false;
+            startBtn.textContent = "Start Training";
+            startBtn.style.backgroundColor = "#2ecc71";
+            cancelAnimationFrame(animationFrameId);
+            resetQTable();
+            resetAgent();
+            draw();
+        });
+
+        // Slider inputs
+        epsilonSlider.addEventListener('input', (e) => {
+            epsilon = e.target.value / 100;
+            epsilonVal.textContent = e.target.value + '%';
+        });
+        alphaSlider.addEventListener('input', (e) => {
+            alpha = e.target.value / 100;
+            alphaVal.textContent = alpha.toFixed(1);
+        });
+        gammaSlider.addEventListener('input', (e) => {
+            gamma = e.target.value / 100;
+            gammaVal.textContent = gamma.toFixed(1);
+        });
+        speedSlider.addEventListener('input', (e) => {
+            simulationSpeed = parseInt(e.target.value);
+            speedVal.textContent = simulationSpeed + 'x';
+        });
+
+        // --- Start Game ---
+        initGame();
+
+    </script>
+</body>
+</html>

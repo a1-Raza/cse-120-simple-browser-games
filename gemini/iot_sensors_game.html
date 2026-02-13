@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IoT Architect: Smart Lab</title>
+    <style>
+        :root { --bg: #1e1e1e; --panel: #2d2d2d; --accent: #007acc; --text: #e0e0e0; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; display: flex; height: 100vh; }
+        
+        /* Sidebar Styles */
+        #sidebar { width: 260px; background: var(--panel); display: flex; flex-direction: column; border-right: 1px solid #444; box-shadow: 2px 0 10px rgba(0,0,0,0.3); z-index: 10; }
+        .section-title { padding: 15px; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; color: #888; border-bottom: 1px solid #444; background: #252525; }
+        .palette { padding: 10px; overflow-y: auto; flex: 1; }
+        .tool { 
+            display: flex; align-items: center; padding: 10px; margin-bottom: 8px; 
+            background: #3a3a3a; border-radius: 6px; cursor: grab; transition: all 0.2s; border: 1px solid #444;
+        }
+        .tool:hover { background: #444; border-color: var(--accent); transform: translateX(5px); }
+        .tool-icon { width: 30px; height: 30px; margin-right: 10px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;}
+        
+        /* Level Control */
+        #level-panel { padding: 20px; background: #252525; border-top: 1px solid #444; }
+        h2 { margin: 0 0 10px 0; font-size: 1.2em; color: var(--accent); }
+        p { font-size: 0.9em; color: #bbb; line-height: 1.4; margin-bottom: 15px; }
+        .btn { 
+            background: var(--accent); color: white; border: none; padding: 10px 15px; 
+            border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; 
+        }
+        .btn:hover { filter: brightness(1.1); }
+        .btn-secondary { background: #444; margin-top: 10px; }
+
+        /* Canvas Area */
+        #main { flex: 1; position: relative; background-image: radial-gradient(#333 1px, transparent 1px); background-size: 20px 20px; }
+        canvas { display: block; cursor: crosshair; }
+        
+        /* Overlay Messages */
+        #message {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(46, 204, 113, 0.9); color: white; padding: 15px 30px;
+            border-radius: 30px; font-weight: bold; pointer-events: none; opacity: 0; transition: opacity 0.5s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        /* Tool Colors */
+        .c-sensor { background: #e74c3c; color: white; }
+        .c-logic { background: #f1c40f; color: black; }
+        .c-actuator { background: #2ecc71; color: white; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="section-title">Component Library</div>
+    <div class="palette">
+        <div class="tool" draggable="true" data-type="sensor" data-subtype="motion">
+            <div class="tool-icon c-sensor">M</div>
+            <div>Motion Sensor<br><small style="font-size:0.7em; color:#aaa">Detects movement</small></div>
+        </div>
+        <div class="tool" draggable="true" data-type="sensor" data-subtype="temp">
+            <div class="tool-icon c-sensor">T</div>
+            <div>Temp Sensor<br><small style="font-size:0.7em; color:#aaa">Detects Heat > 30°C</small></div>
+        </div>
+        <div class="tool" draggable="true" data-type="sensor" data-subtype="switch">
+            <div class="tool-icon c-sensor">S</div>
+            <div>Manual Switch<br><small style="font-size:0.7em; color:#aaa">Toggle On/Off</small></div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="tool" draggable="true" data-type="logic" data-subtype="and">
+            <div class="tool-icon c-logic">&</div>
+            <div>AND Gate<br><small style="font-size:0.7em; color:#aaa">Both inputs required</small></div>
+        </div>
+        <div class="tool" draggable="true" data-type="logic" data-subtype="or">
+            <div class="tool-icon c-logic">||</div>
+            <div>OR Gate<br><small style="font-size:0.7em; color:#aaa">Any input works</small></div>
+        </div>
+        <div class="tool" draggable="true" data-type="logic" data-subtype="not">
+            <div class="tool-icon c-logic">!</div>
+            <div>NOT Gate<br><small style="font-size:0.7em; color:#aaa">Inverts signal</small></div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="tool" draggable="true" data-type="actuator" data-subtype="light">
+            <div class="tool-icon c-actuator">L</div>
+            <div>Smart Light</div>
+        </div>
+        <div class="tool" draggable="true" data-type="actuator" data-subtype="alarm">
+            <div class="tool-icon c-actuator">A</div>
+            <div>Siren Alarm</div>
+        </div>
+        <div class="tool" draggable="true" data-type="actuator" data-subtype="fan">
+            <div class="tool-icon c-actuator">F</div>
+            <div>Cooling Fan</div>
+        </div>
+    </div>
+
+    <div id="level-panel">
+        <h2 id="lvl-title">Level 1: Hello World</h2>
+        <p id="lvl-desc">Connect the <b>Manual Switch</b> to the <b>Smart Light</b> to complete the circuit.</p>
+        <button class="btn" onclick="checkWinCondition()">Validate System</button>
+        <button class="btn btn-secondary" onclick="clearBoard()">Clear Board</button>
+    </div>
+</div>
+
+<div id="main">
+    <div id="message">System Logic Verified! Loading Next Level...</div>
+    <canvas id="canvas"></canvas>
+</div>
+
+<script>
+    // --- Engine Constants ---
+    const GRID = 20;
+    const NODE_W = 100;
+    const NODE_H = 60;
+    
+    // --- State ---
+    let nodes = [];
+    let wires = []; // {from: nodeObj, to: nodeObj}
+    let draggingNode = null;
+    let wiringStart = null;
+    let mouse = {x:0, y:0};
+    let currentLevel = 0;
+
+    // --- Levels ---
+    const LEVELS = [
+        {
+            title: "Level 1: Hello World",
+            desc: "Welcome Engineer. Connect a <b>Manual Switch</b> to a <b>Smart Light</b>. Click the switch to test it, then click 'Validate System'.",
+            check: () => {
+                const s = nodes.find(n => n.subtype === 'switch');
+                const l = nodes.find(n => n.subtype === 'light');
+                if(!s || !l) return false;
+                // Check if connected
+                const wired = wires.some(w => w.from === s && w.to === l);
+                return wired && l.state; // Must be turned on
+            }
+        },
+        {
+            title: "Level 2: Safety Interlock",
+            desc: "We need a safety system. Connect <b>Motion</b> AND <b>Temp</b> sensors to an <b>Alarm</b> using an <b>AND Gate</b>. The alarm should only ring if BOTH activate.",
+            check: () => {
+                const alarm = nodes.find(n => n.subtype === 'alarm');
+                const and = nodes.find(n => n.subtype === 'and');
+                if(!alarm || !and) return false;
+                // Simple topology check: Logic is complex to validate perfectly in simple code, 
+                // so we check if alarm is ON and it depended on an AND gate.
+                return alarm.state && alarm.inputNodes.includes(and);
+            }
+        },
+        {
+            title: "Level 3: Redundancy",
+            desc: "Fire safety. If <b>Temp</b> OR <b>Smoke (Manual Switch)</b> is detected, the <b>Fan</b> must turn on. Use an OR Gate.",
+            check: () => {
+                const fan = nodes.find(n => n.subtype === 'fan');
+                const or = nodes.find(n => n.subtype === 'or');
+                return fan && fan.state && fan.inputNodes.includes(or);
+            }
+        },
+        {
+            title: "Sandbox Mode",
+            desc: "You are now a Certified IoT Architect. Build whatever you want!",
+            check: () => false
+        }
+    ];
+
+    // --- Canvas Setup ---
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+        canvas.width = document.getElementById('main').offsetWidth;
+        canvas.height = document.getElementById('main').offsetHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- Classes ---
+    class Node {
+        constructor(type, subtype, x, y) {
+            this.type = type;
+            this.subtype = subtype;
+            this.x = x;
+            this.y = y;
+            this.w = NODE_W;
+            this.h = NODE_H;
+            this.state = false;
+            this.inputNodes = [];
+            this.id = Math.random().toString(36).substr(2, 9);
+        }
+
+        update() {
+            // Logic processing
+            if (this.type === 'logic') {
+                const inputs = this.inputNodes.map(n => n.state);
+                if (this.subtype === 'and') {
+                    this.state = inputs.length >= 2 && inputs.every(i => i);
+                } else if (this.subtype === 'or') {
+                    this.state = inputs.some(i => i);
+                } else if (this.subtype === 'not') {
+                    this.state = inputs.length > 0 ? !inputs[0] : false;
+                }
+            } else if (this.type === 'actuator') {
+                // Actuators just reflect input
+                this.state = this.inputNodes.some(n => n.state);
+            }
+            // Sensors are toggled manually by user click
+        }
+
+        draw(ctx) {
+            // Body
+            ctx.fillStyle = this.state ? '#444' : '#333';
+            if (this.state && this.type === 'actuator') ctx.fillStyle = '#2ecc71'; // Active actuator
+            if (this.state && this.type === 'sensor') ctx.fillStyle = '#e74c3c'; // Active sensor
+            
+            ctx.strokeStyle = this.state ? '#fff' : '#666';
+            ctx.lineWidth = 2;
+            
+            // Shape based on type
+            ctx.beginPath();
+            ctx.roundRect(this.x, this.y, this.w, this.h, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            // Label
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(this.subtype.toUpperCase(), this.x + this.w/2, this.y + 20);
+            
+            // Status Icon
+            ctx.font = '20px sans-serif';
+            let icon = '';
+            if(this.subtype === 'motion') icon = '🏃';
+            if(this.subtype === 'temp') icon = '🔥';
+            if(this.subtype === 'switch') icon = '🔌';
+            if(this.subtype === 'light') icon = '💡';
+            if(this.subtype === 'alarm') icon = '🚨';
+            if(this.subtype === 'fan') icon = '☢️';
+            if(this.type === 'logic') icon = this.subtype === 'and' ? '&' : (this.subtype === 'or' ? '||' : '!');
+            
+            ctx.fillText(icon, this.x + this.w/2, this.y + 45);
+
+            // Ports
+            // Input Port (Left)
+            if (this.type !== 'sensor') {
+                ctx.fillStyle = '#888';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + this.h/2, 6, 0, Math.PI*2);
+                ctx.fill();
+            }
+            // Output Port (Right)
+            if (this.type !== 'actuator') {
+                ctx.fillStyle = this.state ? 'var(--accent)' : '#888';
+                ctx.beginPath();
+                ctx.arc(this.x + this.w, this.y + this.h/2, 6, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        contains(mx, my) {
+            return mx >= this.x && mx <= this.x + this.w && my >= this.y && my <= this.y + this.h;
+        }
+
+        getPort(mx, my) {
+            // Check Output Port (Right)
+            if (this.type !== 'actuator') {
+                let dx = mx - (this.x + this.w);
+                let dy = my - (this.y + this.h/2);
+                if (dx*dx + dy*dy < 100) return 'out';
+            }
+            // Check Input Port (Left)
+            if (this.type !== 'sensor') {
+                let dx = mx - (this.x);
+                let dy = my - (this.y + this.h/2);
+                if (dx*dx + dy*dy < 100) return 'in';
+            }
+            return null;
+        }
+    }
+
+    // --- Interaction ---
+    
+    // Drag & Drop from Sidebar
+    const tools = document.querySelectorAll('.tool');
+    tools.forEach(t => {
+        t.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('type', t.dataset.type);
+            e.dataTransfer.setData('subtype', t.dataset.subtype);
+        });
+    });
+
+    canvas.addEventListener('dragover', e => e.preventDefault());
+    canvas.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const type = e.dataTransfer.getData('type');
+        const subtype = e.dataTransfer.getData('subtype');
+        const x = e.clientX - rect.left - NODE_W/2;
+        const y = e.clientY - rect.top - NODE_H/2;
+        nodes.push(new Node(type, subtype, x, y));
+    });
+
+    // Mouse Interaction
+    canvas.addEventListener('mousedown', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        // Check for wiring
+        for(let n of nodes) {
+            const port = n.getPort(mx, my);
+            if(port === 'out') {
+                wiringStart = n;
+                return;
+            }
+        }
+
+        // Check for dragging or clicking
+        for(let i = nodes.length-1; i>=0; i--) {
+            if(nodes[i].contains(mx, my)) {
+                // If it's a sensor, toggle it
+                if(nodes[i].type === 'sensor') {
+                    nodes[i].state = !nodes[i].state;
+                } else {
+                    draggingNode = nodes[i];
+                }
+                return;
+            }
+        }
+    });
+
+    canvas.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = e.clientX - rect.left;
+        mouse.y = e.clientY - rect.top;
+
+        if (draggingNode) {
+            draggingNode.x = mouse.x - NODE_W/2;
+            draggingNode.y = mouse.y - NODE_H/2;
+        }
+    });
+
+    canvas.addEventListener('mouseup', e => {
+        if(wiringStart) {
+            // Check if dropped on an input port
+            for(let n of nodes) {
+                if(n !== wiringStart && n.getPort(mouse.x, mouse.y) === 'in') {
+                    // Create connection
+                    wires.push({from: wiringStart, to: n});
+                    n.inputNodes.push(wiringStart);
+                    break;
+                }
+            }
+        }
+        wiringStart = null;
+        draggingNode = null;
+    });
+
+    // --- Game Logic ---
+    function update() {
+        // Reset Inputs for logic gates to recalculate
+        // (In a real sim we'd do topological sort, but simple update loop works for this scale)
+        nodes.forEach(n => {
+            if(n.type !== 'sensor') n.update();
+        });
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Wires
+        ctx.lineWidth = 3;
+        wires.forEach(w => {
+            ctx.beginPath();
+            ctx.moveTo(w.from.x + w.from.w, w.from.y + w.from.h/2);
+            // Curvy wire
+            ctx.bezierCurveTo(
+                w.from.x + w.from.w + 50, w.from.y + w.from.h/2,
+                w.to.x - 50, w.to.y + w.to.h/2,
+                w.to.x, w.to.y + w.to.h/2
+            );
+            ctx.strokeStyle = w.from.state ? '#007acc' : '#555'; // Blue if active
+            ctx.stroke();
+        });
+
+        // Wiring Line (if dragging)
+        if(wiringStart) {
+            ctx.beginPath();
+            ctx.moveTo(wiringStart.x + wiringStart.w, wiringStart.y + wiringStart.h/2);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.strokeStyle = '#fff';
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Draw Nodes
+        nodes.forEach(n => n.draw(ctx));
+
+        requestAnimationFrame(() => {
+            update();
+            draw();
+        });
+    }
+
+    function checkWinCondition() {
+        if(currentLevel >= LEVELS.length) return;
+        
+        const lvl = LEVELS[currentLevel];
+        if(lvl.check()) {
+            const msg = document.getElementById('message');
+            msg.style.opacity = 1;
+            setTimeout(() => {
+                msg.style.opacity = 0;
+                nextLevel();
+            }, 2000);
+        } else {
+            alert("System test failed. Check your logic!");
+        }
+    }
+
+    function nextLevel() {
+        currentLevel++;
+        if(currentLevel < LEVELS.length) {
+            document.getElementById('lvl-title').innerText = LEVELS[currentLevel].title;
+            document.getElementById('lvl-desc').innerHTML = LEVELS[currentLevel].desc;
+            clearBoard();
+        }
+    }
+
+    function clearBoard() {
+        nodes = [];
+        wires = [];
+    }
+
+    // Start
+    draw();
+
+</script>
+</body>
+</html>
